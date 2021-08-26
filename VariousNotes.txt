@@ -9,7 +9,7 @@ bbox=29.0,-91.0,-30.0,92.0
 bbox=-91.0,29.0,92.0,-32.0
 bbox=29.0,-91.0,-30.0,92.0
 bbox=29.0,-91.0,-30.0,92.0
-https://www.aviationweather.gov/cgi-bin/json/MetarJSON.php?bbox=-97,26,-89,33&zoom=10
+https://www.aviationweather.gov/cgi-bin/json/MetarJSON.php?bbox=-93,29,-91,31&density=all&jsonp=
 
 https://jsonformatter.org/json-parser
 

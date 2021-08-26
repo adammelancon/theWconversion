@@ -26,9 +26,9 @@
 // WIFI SSID and Passwords
 
 const char* ssid = "TIPP";
-const char* password =  "krisandalex";
+const char* password =  "xxxxxx";
 //const char* ssid = "TippHS";
-//const char* password =  "b1ahb1ahb1ah";
+//const char* password =  "xxxxxx";
 
 // Host site and current thumbprint (Click on lock > Details tab > Thumbprint - Must insert colons into string) (Valid to 2022/01/27)
 const char* host = "tgftp.nws.noaa.gov";

@@ -1,19 +1,22 @@
 import requests
+import json
 
 url = "https://www.aviationweather.gov/cgi-bin/json/MetarJSON.php?"
 args = "bbox=-93,29,-91,31&density=all&jsonp="
 station_wx_dict = {}
 # uncomment one and comment the other to see another station's data!
 STATION_ID = "KIYA"
-#STATION_ID = "KLFT"
-
+# STATION_ID = "KLFT"
+UTC_OFFSET = 5
 
 
 def get_json(site, arguments):
     '''Takes the site url, and url arguments and retrieves METAR JSON data'''
     response = requests.get(url + args)
-    if response.status_code == 200 and 'application/json' in response.headers.get('Content-Type' , ''):
+    if response.status_code == 200 and 'application/json' in response.headers.get(
+            'Content-Type', ''):
         return response.json()
+    # TODO - elif not 200 response turn LEDs red
 
 
 # puts full JSON into "data" dictionary
@@ -34,7 +37,7 @@ def get_wxstation_to_dict():
             if data_items[index]['properties'][x] == STATION_ID:
                 station_index = int(index)
                 # print(f"The station index is: {station_index}")
-    
+
     # station_keys must go here after the index is grabbed by the for loop above.
     station_keys = data_items[station_index]['properties']
 
@@ -43,6 +46,7 @@ def get_wxstation_to_dict():
 
 # This runs the get_wxstation_to_dict function to get just the one station into a dictionary.
 get_wxstation_to_dict()
+time_of_day = int(station_wx_dict['obsTime'][-9:-7]) - UTC_OFFSET
 
 # This is just something pretty I worked up to display the data.
 print(f"FORMATTED METAR DATA FOR {STATION_ID}")
@@ -64,16 +68,23 @@ print(f"       Altimeter: {station_wx_dict['altim']} hPa")
 print(f"  Raw METAR text: {station_wx_dict['rawOb']}")
 print("")
 print("")
-# printing just the raw dictionary data for the STATION_ID we chose
-print(f"Raw METAR dictionary data from JSON. Dict variable is: 'station_wx_dict'")
-print("========================================================================")
 print("")
-print(f"{station_wx_dict}")
+print("AREA TO TEST PRINT VARIABLES")
+print(
+    f"Time of day test: {int(station_wx_dict['obsTime'][-9:-7]) - UTC_OFFSET}")
+print("")
+print("")
+# printing just the raw dictionary data for the STATION_ID we chose
+print(
+    f"Raw METAR dictionary data from JSON. Dict variable is: 'station_wx_dict'"
+)
+print(
+    "========================================================================")
+print("")
+print(json.dumps(station_wx_dict, indent=2))
+# print(f"{station_wx_dict}")
 
-
-     
 # THIS BELOW IS JUST SAMPLE DATA FOR ME TO COMPARE WITH
-
 '''
 {
     "features": [
