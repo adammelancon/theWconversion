@@ -1,0 +1,56 @@
+metar json data
+https://www.aviationweather.gov/help/webservice?page=metarjson
+
+json url for a bounding box for acadiana
+https://www.aviationweather.gov/cgi-bin/json/MetarJSON.php?bbox=-93,29,-91,31&density=all
+
+https://jsonformatter.org/json-parser
+
+https://stackoverflow.com/a/51788790
+https://stackoverflow.com/a/16549120
+
+sample abbeville metar
+METAR: KIYA [Abbeville/Crusta Mem]
+METAR: KIYA 260155Z AUTO 00000KT 10SM CLR 26/23 A2998 RMK AO2 LTG DSNT SW T02600227
+
+{
+    "features": [
+        {
+            "properties": {
+                "bbox": "-93.0000,29.0000,-91.0000,31.0000",
+                "beg_time": "1629940701",
+                "data": "METAR",
+                "end_time": "1629947901",
+                "wrap": ""
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -92.083,
+                    29.976
+                ],
+                "type": "Point"
+            },
+            "id": "608389884",
+            "properties": {
+                "altim": 1016.0,
+                "cldCvg1": "CLR",
+                "cover": "CLR",
+                "data": "METAR",
+                "dewp": 23.3,
+                "fltcat": "VFR",
+                "id": "KIYA",
+                "obsTime": "2021-08-26T03:15:00Z",
+                "prior": 6,
+                "rawOb": "KIYA 260315Z AUTO 07003KT 7SM CLR 25/23 A3000 RMK AO2 LTG DSNT W T02510233",
+                "site": "Abbeville/Crusta Mem",
+                "temp": 25.1,
+                "visib": 7.0,
+                "wdir": 70,
+                "wspd": 3
+            },
+            "type": "Feature"
+        },
+

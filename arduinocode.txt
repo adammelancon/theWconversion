@@ -1,0 +1,547 @@
+// 2019-01-03 ----- Alex W Weather Sign -----
+// Code exists here for several boards
+// SD1306 for development board that includes 128x32 OLED display
+// Code developed on Adafruit Huzza board
+
+// Updated 2020/01/24 - Corrected LED count and updated Thumbprint
+
+// Initialize ESP8266WiFi Chip
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>  // for https connections
+
+// Initialize the OLED display using Wire library
+#include "SSD1306Wire.h" // legacy include: `#include "SSD1306.h"
+// SSD1306Wire display(0x3c, 4, 5, GEOMETRY_128_32 );  // (Address, SDA, SCL, Geometry) for SSD1306 OLED 128x32
+   SSD1306Wire display(0x3c, 4, 5, GEOMETRY_128_64 );  // (Address, SDA, SCL, Geometry) for SSD1306 OLED 128x64
+#include "Dialog_plain_48.h"  // load the font
+
+#include <Adafruit_NeoPixel.h>  // ONLY ONE CAN BE ACTIVE!!!
+ #define PIN 13 //NodeMCU ESP-12E Board  
+// #define PIN 16 //Adafruit Huzza Board
+
+// #define LED D0 // Led in NodeMCU at pin GPIO16 (D0).
+
+// Program variables
+
+// WIFI SSID and Passwords
+
+const char* ssid = "TIPP";
+const char* password =  "krisandalex";
+//const char* ssid = "TippHS";
+//const char* password =  "b1ahb1ahb1ah";
+
+// Host site and current thumbprint (Click on lock > Details tab > Thumbprint - Must insert colons into string) (Valid to 2022/01/27)
+const char* host = "tgftp.nws.noaa.gov";
+int port = 443; // SSL server port #
+
+
+// Go to webpage and inspect the certificate (lock).  Copy the Thumbprint and add the colons to the text string.
+//const char fingerprint[] PROGMEM = "77:ae:94:8f:09:8a:e5:d4:e2:1f:5c:20:f6:6b:5e:8f:79:64:82:0c"; // Currrent host thumbprint
+//const char fingerprint[] PROGMEM = "3d:c5:be:1b:a0:7b:26:55:0b:ce:cb:5b:3c:85:86:3d:ed:59:e1:62"; // Currrent host thumbprint
+//const char fingerprint[] PROGMEM = "45:be:50:da:9c:e3:86:73:e1:b3:74:77:95:36:8b:e5:94:86:2f:b6"; // Currrent host thumbprint 1/24/2020
+const char fingerprint[] PROGMEM = "61:df:9d:f4:69:eb:da:d2:d2:3d:30:bf:a4:60:3a:10:f2:ee:65:d7"; // Currrent host thumbprint 1/24/2020
+
+const char* station = "KIYA";
+
+String fixedTemp;
+String line;
+String metar;
+String sMetarHour;
+String sMetarMinute;
+String sWindSpeed;
+String conditions = "UNSET";
+int currentTemp;
+int metarHour;
+int metarMinute;
+int windSpeed;
+int wt = 600000; // wait time (in miliseconds) for fresh metar (in functions)
+int d = 20;  // screensaver timing
+// seeds for screensaver
+int cl = 0; // lower pixel limit
+int cu = 254; // upper pixel limit
+int LEDg = 0; // LEDg (Green) value
+int pixel = 0; // pixel number
+
+// Adafruit_NeoPixel strip = Adafruit_NeoPixel(18, PIN, NEO_GRB + NEO_KHZ800); // LED test tape
+ Adafruit_NeoPixel strip = Adafruit_NeoPixel(18, PIN, NEO_RGB + NEO_KHZ800); // W 8211 LEDs
+
+uint32_t pixColor;
+uint32_t SuperCold = strip.Color(0, 0, 100);
+uint32_t Cold = strip.Color(0, 100, 100);
+uint32_t Cool = strip.Color(0, 100, 50);
+uint32_t Normal = strip.Color(0, 100, 0);
+uint32_t Warm = strip.Color(100,0,50);
+uint32_t Hot = strip.Color(100, 0, 0);
+uint32_t error = strip.Color(255, 255, 255);  // error state wifi
+
+
+void setup() // ----- SETUP -----
+{
+
+//    pinMode(LED, OUTPUT);    // LED pin as output.  Debugging
+//    digitalWrite(LED, HIGH); // Set LED to off.  Debugging
+
+// Connect wifi (Initial attempt)
+
+  WiFi.begin(ssid, password);
+  
+// --- Init the serial port for debugging ---
+  Serial.begin(115200);
+  delay(100); // give the serial port a quick break
+  Serial.println();
+  Serial.println("Welcome to the Alex W");
+  Serial.println("WEBSITE SSL CERT EXPIRES ---> 2020/01/27");
+  Serial.println();
+
+// --- Init the SSD1306 OLED ---
+
+pinMode(16, OUTPUT); // little code dance to reset the SSD1306 OLED via hardware
+digitalWrite(16, LOW);
+delay(50);
+digitalWrite(16, HIGH);
+
+display.init();
+display.flipScreenVertically();
+display.setFont(ArialMT_Plain_10);
+
+
+// --- Initialize NeoPixels ---
+  
+  strip.begin();
+  
+
+  for(int i=0; i<18; i++) // Turn all LED's off
+    {
+      strip.setPixelColor(i, 0, 0, 0);
+      strip.show();
+    } 
+}
+
+void loop() // ----- Main Loop -----
+{
+
+  setupWifi(); // Establish the Wifi Connection
+   
+  getMETAR();  // get a fresh METAR report (HTTPS not enabled)
+
+  setLEDbrightness(); // Set the LED brightness based on METAR time
+  
+  tempColor(currentTemp);  // set the pixel color based on temperature
+
+  normalDisplay();  // write to the OLED normal stuff as defined in function
+
+Serial.println("Deciding what the weather is like");
+
+// --- what is the weather like? ---
+
+    if (conditions == "RAIN") {
+      rainPattern(200);
+    }
+    else if(conditions == "DRIZZLE") {
+      rainPattern(400);
+    }
+    else if(conditions == "OVERCAST") {
+      overcastDay();
+    }
+    else if(conditions == "FOGGY") {
+      foggyDay();
+    }
+    else if(conditions == "SCATTERED") {
+      scatteredDay();
+    }
+    else if(conditions == "CLEAR") {
+      clearDay();
+    }
+    else if(conditions == "UNSET") {
+      clearDay();
+    }
+
+Serial.println();
+Serial.println("Cycle Complete // debuging");
+
+  // waveyPattern(10);  // start screen saver
+
+}  // end void loop
+
+// ----- BEGIN FUNCTIONS -----
+
+void setupWifi() //  --- begin WIFI connection ---
+{
+  display.clear(); 
+  Serial.printf("Connecting to %s ", ssid);
+
+  WiFi.begin(ssid, password);
+  
+  for (int x = 0; x < 18; x = x + 1) {
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println(" connected");
+      Serial.println();
+      display.clear(); 
+      display.drawString(1, 1, (String("Wifi conected: ")) + ssid);
+      
+      IPAddress ip = WiFi.localIP();
+      String ipStr = String(ip[0]) + '.' + String(ip[1]) + '.' + String(ip[2]) + '.' + String(ip[3]);
+      display.drawString(1, 10, (String("Local IP: ")) + ipStr); 
+      display.display();
+      
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
+      delay(1000);
+      return;
+       }
+    
+    else {
+    delay(1000);
+    Serial.print(".");
+//    strip.setBrightness(5); // temp removed due to brightness change on reload
+    strip.setPixelColor(x, 25, 25, 25);
+    strip.show();
+    display.drawString(1, 1 ,(String("Connecting to: ") + ssid));
+    display.drawString((x * 6), 15, (String("X")));
+    display.display();
+    }
+    
+  }
+  Serial.println();
+  Serial.println("Wifi NOT Connected");
+  waveyPattern(20); //jump to screensaver
+}
+
+void getMETAR() // ----- Get Fresh METAR report -----
+{
+
+// HTTP request for METAR data
+  WiFiClientSecure client;
+  Serial.println("Getting the current METAR");
+  Serial.println();
+  Serial.printf("\n[Connecting to %s ... ", host);
+
+  Serial.printf("Using fingerprint '%s'\n", fingerprint);
+  client.setFingerprint(fingerprint);
+
+  if (!client.connect(host, port)) {
+      Serial.println("connection failed");
+      display.drawString(1, 20, (String("HTTPS FAILED: "))); 
+      display.display();
+      for(int i=0; i<18; i++) // Turn all LED's red
+    {
+      strip.setPixelColor(i, 25, 0, 0);
+      strip.show();
+    } 
+      return;
+    }
+  
+  if (client.connect(host, port))
+  {
+    Serial.println("connected]");
+    display.drawString(1, 20, (String("HTTPS OK: ")) + host); 
+    display.display();
+
+    Serial.println("Requesting METAR data from station " + String(station));
+    String url = "/data/observations/metar/stations/";  // raw metar
+    client.print(String("GET /") + url + station + ".TXT HTTP/1.1\r\n" +
+                  "Host: " + host + "\r\n" +
+               "Connection: close\r\n" +
+                "\r\n"
+                );
+    Serial.println();
+    Serial.println("[Response:]");
+    while (client.connected())
+   {    
+    line = client.readString();
+   }
+
+    client.stop();
+
+// Find the station location in the string
+int loc = line.indexOf(station); // Variable to store locator position in string
+metar = line.substring(loc); // numerical location of the station identifier in the string
+
+  Serial.println("-----------Begin RAW WEBSITE DATA----------- \n");
+  Serial.println(line);
+  Serial.println("-----------End of RAW WEBSITE DATA----------");
+  Serial.println();
+
+// Parse the time from the METAR data
+String sMetarHour = metar.substring(7,9);  //read current METAR hour
+metarHour = sMetarHour.toInt(); // convert string to int
+String sMetarMinute = metar.substring(9,11);  //read current METAR minute
+metarMinute = sMetarMinute.toInt(); // convert string to int
+
+// Parse the temperature from the METAR data
+
+int tmppos = metar.lastIndexOf("/");  // find the last / character which should be temp **NEED TO CONFIRM**
+fixedTemp = metar.substring(tmppos - 3,tmppos); // read the current temp
+  if (fixedTemp.charAt(0) == 'M') // if M is present means minus conver to - sign
+     {
+      fixedTemp.setCharAt(0, '-');
+     }
+     else
+     {
+      fixedTemp.setCharAt(0, '0');
+     }
+currentTemp = fixedTemp.toInt(); // convert string to int
+
+// Parse the wind speed from the METAR data (based on position only)
+
+String sWindSpeed = metar.substring(21,23); // read from fixed position 
+windSpeed = sWindSpeed.toInt(); // convert string to int
+
+
+// What are the conditions at the station by brute string force
+// (This could most likely be much more graceful.)
+
+  if (metar.indexOf("RA") >= 0)
+     {
+      conditions = "RAIN";
+     }
+     
+  else if (metar.indexOf("DZ") >= 0)
+     {
+      conditions = "DRIZZLE";
+     }
+     
+  else if (metar.indexOf("CLR") >= 0)
+     {
+      conditions = "CLEAR";
+     }
+  
+  else if (metar.indexOf("FG") >= 0)
+     {
+      conditions = "FOGGY";
+     } 
+     
+  else if (metar.indexOf("OVC") >= 0)
+     {
+      conditions = "OVERCAST";
+     }
+        
+  else if (metar.indexOf("SCT") >= 0)
+     {
+      conditions = "SCATTERED";
+     }
+
+
+Serial.println();
+Serial.print(metar); // Print the raw METAR data
+Serial.println();
+Serial.println(String("Current temp at ") + station + " is " + currentTemp + " C");
+Serial.println(String("Current conditions at ") + station + ": " + conditions);
+
+
+   
+    Serial.println("\n[Disconnected]");
+  }
+  else
+  {
+    Serial.println("get data failed");
+    client.stop();
+    pixColor = error;
+  } 
+}
+
+void normalDisplay() // ----- what to normally display on the OLED -----
+{
+  display.clear(); // Clear the OLED and print the following
+  display.setFont(ArialMT_Plain_10); // here for debugging purposes
+//  display.setFont(Dialog_plain_48); // normal size font
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.drawString(64, 15, (String("")) + currentTemp  + "c");
+  delay(5000);
+  display.clear();
+  display.drawString(64, 15, (String("")) + windSpeed  + "k");
+
+//display.setFont(ArialMT_Plain_10);
+//display.drawString(1, 1, (String("Temp: ")) + currentTemp  + " C");
+//display.drawString(1, 10, (String("Conditions: ")) + conditions);
+//display.drawString(1, 20, (String("METAR time: ")) +  metarHour + ":" + metarMinute);
+
+  display.display();
+}
+
+
+
+void setLEDbrightness() // ----- Set LED brightness based on time of day -----
+{
+  Serial.println("Setting LED brightness");
+  
+  if (metarHour <= 9)
+    {
+      strip.setBrightness(5);
+      Serial.println(String("LED is set to night mode.  h") + metarHour);
+        display.setFont(ArialMT_Plain_10);
+ //     display.drawString(122, 22, (String("N")));
+ //     display.display();
+    }
+  
+  else 
+    {
+      strip.setBrightness(64);
+      Serial.println(String("LED is set to day mode.  h") + metarHour);
+        display.setFont(ArialMT_Plain_10);
+  //    display.drawString(122, 22, (String("D")));
+  //    display.display();
+    }
+}
+
+void tempColor(int c) // ----- Set the LED color based on temperature (currentTemp) -----
+{
+
+Serial.println("Setting the color based on current temp");
+
+  if (c < 4) {pixColor = SuperCold;}
+  else if (c < 15) {pixColor = Cold;}
+  else if (c < 18) {pixColor = Cool;}
+  else if (c < 29) {pixColor = Normal;}
+  else if (c <= 32) {pixColor = Warm;}
+  else if (c > 32) {pixColor = Hot;}
+
+}
+
+void scatteredDay() // ----- Scattered Day -----
+{
+
+// Set first five (every other) white (clouds)
+  strip.setPixelColor(0, 50,50,50);
+  strip.setPixelColor(1, 0,0,0);
+  strip.setPixelColor(2, 50,50,50);
+  strip.setPixelColor(3, 0,0,0);
+  strip.setPixelColor(4, 50,50,50);
+
+  for (int i=5; i<19; i++)  // set the rest of the strip
+     {
+      strip.setPixelColor(i, pixColor);
+     }
+  strip.show();
+  delay(wt);  
+}
+
+void clearDay()  // ----- Clear Day -----
+{
+  for(int i=0; i<19; i++)  // Set all pixels same color
+     {
+      strip.setPixelColor(i, pixColor);
+     }
+  strip.show();
+  delay(wt); 
+}
+
+void overcastDay()  // ----- Overcast Day -----
+{
+
+  for(int i=0; i<5; i++)  // Set first five white (clouds)
+    {
+      strip.setPixelColor(i, 50, 50, 50);
+    } 
+    
+  for(int i=5; i<19; i++) // Set the rest of the LEDs for current temp
+     {
+      strip.setPixelColor(i, pixColor);
+     }
+  strip.show();
+  delay(wt);
+}
+
+void foggyDay()  // ----- Foggy Day -----
+{
+
+  for(int i=0; i<12; i++) // Set top two rows white
+    {
+      strip.setPixelColor(i, 50, 50, 50);
+      strip.show();
+    } 
+
+  for(int i=12; i<19; i++)
+     {
+      strip.setPixelColor(i, pixColor);  // Set the rest of the LEDs for current temp
+     }
+  strip.show();
+  delay(wt);
+}
+
+
+void rainPattern(int rateRain) // Its raining outside
+{
+    int r[]={7, 8, 15, 16, 5, 11, 12, 17, 6, 9, 14, 16, 6, 10, 13, 17}; // Rain pattern based on physical layout
+
+    
+    for(int i=0; i<6; i++)  // Set first five white (clouds)
+    {
+      strip.setPixelColor(i, 50, 50, 50);
+    } 
+
+    for(int x=0; x<450; x++) // loop rain for 450 times ~15 minutes
+    {
+      
+      for(int i=0; i<17; i++) // step through the pattern
+      {
+        if (i == 0){strip.setPixelColor(r[14], 0, 0, 0);} //set second last pixel off
+        if (i == 1){strip.setPixelColor(r[15], 0, 0 ,0);} //set last pixel off
+        strip.setPixelColor(r[i], pixColor);
+        strip.setPixelColor(r[i-1], 0);
+        strip.show();
+        delay(rateRain);
+      }
+    }    
+}
+
+void waveyPattern(int d) // ----- Green Screen Saver -----
+{
+// built inturrupt here based on time variable
+
+Serial.println();
+Serial.println("Starting screen saver");
+
+for(int i=0; i<19; i++) // Clear LEDs
+    {
+      strip.setPixelColor(i, 0, 0, 0);
+      strip.show();
+    } 
+ 
+for (int x = 0; x < 500; x = x + 1) // loop for x times
+    { 
+      
+    pixel = random(18);  // pick a random pixel
+    cu = random(50, 100); // upper random limit
+    cl = random(1, 3); // lower random limit
+    LEDg = (strip.getPixelColor(pixel) >> 8); // read current LEDg pixel value
+    
+    display.clear();
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(pixel * 2, pixel, (String("Screensaver Mode")));
+    display.display();
+
+   if (LEDg <= 127) {
+      do {
+       LEDg = LEDg + 1; // fade current to up upper limit
+     
+      strip.setPixelColor(pixel, 0, LEDg, 0); // set value to pixel
+      strip.show();
+      // Serial.println(String("Fade to Upper Pix: ") + pixel + " LEDg: " + LEDg);
+      
+      delay(d);
+      } while (LEDg < cu);
+   }
+    else {
+      do {
+      LEDg = LEDg - 1; // fade current to up upper limit
+      strip.setPixelColor(pixel, 0, LEDg, 0); // set value to pixel
+      strip.show();
+      // Serial.println(String("Fade to Lower Pix: ") + pixel + " LEDg: " + LEDg);
+      
+      delay(d);
+      } while (LEDg > cl);
+    }
+
+   } // close for x loop
+
+setupWifi();
+
+} // close void
+
+/*
+ * THINGS TO CLEAN UP:
+ * for troubleshooting, need to sense if there is no 8211 connected and move on
+ * 
+ */
