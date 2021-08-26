@@ -1,5 +1,4 @@
 import requests
-import json
 
 url = "https://www.aviationweather.gov/cgi-bin/json/MetarJSON.php?"
 args = "bbox=-93,29,-91,31&density=all&jsonp="
