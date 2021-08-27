@@ -39,13 +39,14 @@ def get_wxstation_to_dict():
                 # print(f"The station index is: {station_index}")
 
     # station_keys must go here after the index is grabbed by the for loop above.
-    station_keys = data_items[station_index]['properties']
+    station_wx_dict = data_items[station_index]['properties']
 
-    station_wx_dict = station_keys
+
 
 
 # This runs the get_wxstation_to_dict function to get just the one station into a dictionary.
 get_wxstation_to_dict()
+time_of_day = int(station_wx_dict['obsTime'][-9:-7]) - UTC_OFFSET
 time_of_day = int(station_wx_dict['obsTime'][-9:-7]) - UTC_OFFSET
 
 # This is just something pretty I worked up to display the data.
