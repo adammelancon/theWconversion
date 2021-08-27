@@ -16,7 +16,7 @@ import adafruit_ssd1306
 STATION_ID = "KIYA"  
 
 url = "https://www.aviationweather.gov/cgi-bin/json/MetarJSON.php?"
-args = "bbox=-93,29,-91,31&density=all&jsonp="
+arguments = "bbox=-93,29,-91,31&density=all&jsonp="
 
 # Main dictionary to hold station JSON data.
 station_wx_dict = {}
@@ -60,10 +60,10 @@ def wifi_setup():
 
 
 
-def get_json(site, arguments):
+def get_json(site, args):
     # TODO - elif not 200 response turn LEDs red
     '''Takes the site url, and url arguments and retrieves bulk METAR JSON data'''
-    response = requests.get(url + args)
+    response = requests.get(site + args)
     if response.status_code == 200 and 'application/json' in response.headers.get(
             'Content-Type', ''):
         return response.json()
@@ -94,7 +94,7 @@ def get_wxstation_to_dict(stn_id):
 wifi_setup()
 
 # Puts all JSON in a dictionary.
-data = get_json(url, args)
+data = get_json(url, arguments)
 # Where key:value data for all METAR stations will live.
 data_items = data['features']
 
